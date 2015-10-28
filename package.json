@@ -1,0 +1,29 @@
+{
+  "name": "proxyism",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Tim Macfarlane <timmacfarlane@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "colors": "1.1.2",
+    "express": "4.13.3",
+    "httpism": "1.7.1"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "proxy",
+    "http"
+  ],
+  "description": "quickly write a proxy with behaviour for debugging production systems",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/featurist/proxyism.git"
+  },
+  "bugs": {
+    "url": "https://github.com/featurist/proxyism/issues"
+  },
+  "homepage": "https://github.com/featurist/proxyism#readme"
+}
