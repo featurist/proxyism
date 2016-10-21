@@ -10,7 +10,8 @@
   "dependencies": {
     "colors": "1.1.2",
     "express": "4.13.3",
-    "httpism": "1.7.1"
+    "httpism": "1.7.1",
+    "system-proxy": "^2.0.0"
   },
   "devDependencies": {},
   "keywords": [

@@ -1,7 +1,7 @@
 var colors = require('colors/safe');
 
 var colorIndex = 0;
-var colors = [
+var allColors = [
   colors.green,
   colors.yellow,
   colors.blue,
@@ -11,10 +11,10 @@ var colors = [
 ];
 
 function selectColor() {
-  return colors[colorIndex++ % colors.length];
+  return allColors[colorIndex++ % allColors.length];
 }
 
-function logger(name) {
+function logger() {
   var color = selectColor();
   return function (req, message) {
     console.log(req.method + ' ' + req.url + color(message? ' => ' + message: ''));

@@ -1,5 +1,18 @@
 var proxy = require('./proxy');
 var logger = require('./logger');
+var systemProxy = require('system-proxy');
+var proxySettings = require('./windowsProxySettings')('localhost', 8888);
+var pathUtils = require('path');
+
+console.log('setting proxy: localhost:8888');
+proxySettings.set();
+
+process.on('SIGINT', function() {
+  proxySettings.unset().then(function () {
+    console.log('resetting proxy');
+    process.exit();
+  });
+});
 
 proxy.getImage = function(fn) {
   this.get('*', function (req, res, next) {
@@ -21,7 +34,7 @@ proxy.delay = function(n) {
 
 proxy.file = function(filename) {
   var log = logger('file');
-  var path = process.cwd() + '/' + filename;
+  var path = pathUtils.resolve(process.cwd(), filename);
   return function (req, res, next) {
     log(req, filename);
     res.sendFile(path);
