@@ -16,8 +16,8 @@ function selectColor() {
 
 function logger() {
   var color = selectColor();
-  return function (req, message) {
-    console.log(req.method + ' ' + req.url + color(message? ' => ' + message: ''));
+  return function (req, message, {url} = {}) {
+    console.log(req.method + ' ' + (url || req.url) + color(message? ' => ' + message: ''));
   };
 }
 

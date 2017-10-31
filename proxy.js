@@ -1,60 +1,104 @@
-var express = require('express');
-var httpism = require('httpism').raw;
-var http = require('http');
-var net = require('net');
-var logger = require('./logger');
-
-var app = express();
-var port = process.env.PORT || 8888;
+const express = require('express');
+const httpism = require('httpism').raw.client(require('httpism/middleware/basicAuth'))
+const http = require('http');
+const https = require('https');
+const net = require('net');
+const logger = require('./logger');
+const fs = require('fs')
 
 var proxyLog = logger('proxy');
 
-function proxyRequest(req, res) {
-  // proxyLog(req);
-  httpism.send(req.method, req.url, req, {headers: req.headers, responseBody: 'stream', exceptions: false }).then(function (response) {
-    res.status(response.statusCode);
-    Object.keys(response.headers).forEach(function (header) {
-      res.header(header, response.headers[header]);
-    });
-    response.body.pipe(res);
-  }, function (error) {
-    proxyLog(req, error.message);
-  });
+module.exports = function(httpPort = 8888, httpsPort = httpPort + 1) {
+  const httpsHosts = new Set()
+
+  Promise.all([
+    httpServer(httpPort, httpsHosts, httpsPort),
+    httpsServer(httpsPort),
+  ]).then(() => {
+    console.log(`proxy running on http://localhost:${httpPort}`)
+  })
+
+  var proxy = {httpism, httpsHosts};
+
+  return proxy;
+};
+
+function handleError (req, res, url, error) {
+  const message = error && error.stack || error
+  proxyLog(req, message, {url});
+  res.statusCode = 500
+  res.setHeader('content-type', 'text/plain')
+  res.end(message)
 }
 
-var server = http.createServer(app);
+function httpServer (port, httpsHosts, httpsPort) {
+  function forwardProxyRequest (req, res) {
+    proxyLog(req);
+    httpism.request(req.method, req.url, req, {headers: req.headers, responseBody: 'stream', response: true, exceptions: false }).then(function (response) {
+      res.statusCode = response.statusCode
+      Object.keys(response.headers).forEach(function (header) {
+        res.setHeader(header, response.headers[header]);
+      });
+      response.body.pipe(res);
+    }, function (error) {
+      return handleError(req, res, req.url, error)
+    });
+  }
 
-server.on('connect', function(req, socket, head) {
-  var addr = req.url.split(':');
-  //creating TCP connection to remote server
-  var conn = net.connect(addr[1] || 443, addr[0], function() {
-    // tell the client that the connection is established
-    socket.write('HTTP/' + req.httpVersion + ' 200 OK\r\n\r\n', 'UTF-8', function() {
-      // creating pipes in both ends
-      conn.pipe(socket);
-      socket.pipe(conn);
+  var server = http.createServer(forwardProxyRequest)
+
+  server.on('connect', (req, socket, head) => {
+    var addr = req.url.split(':');
+    const host = `${addr[0]}:${addr[1] || 443}`
+
+    if (httpsHosts.has(host)) {
+      addr = ['localhost', httpsPort]
+    }
+
+    var conn = net.connect(addr[1] || 443, addr[0], function() {
+      socket.write('HTTP/' + req.httpVersion + ' 200 OK\r\n\r\n', 'UTF-8', function() {
+        conn.pipe(socket);
+        socket.pipe(conn);
+      });
+    });
+
+    conn.on('error', function(e) {
+      console.error("Server connection error: " + e, addr);
+      socket.end();
     });
   });
 
-  conn.on('error', function(e) {
-    console.log("Server connection error: " + e, addr);
-    socket.end();
-  });
-});
+  return new Promise((resolve, reject) => server.listen(port, function (err) {
+    if (err) reject(err)
+    else resolve()
+  }))
+}
 
-server.listen(port, function () {
-  console.log('http://localhost:' + port + '/');
-  app.use(function (req, res) {
-    proxyRequest(req, res);
-  });
-});
+function httpsServer (port) {
+  function reverseProxyRequest (req, res) {
+    const url = `https://${req.headers.host}${req.url}`
 
-var proxy = {};
+    proxyLog(req, undefined, {url});
 
-['get', 'delete', 'post', 'put', 'patch', 'options'].forEach(function (method) {
-  proxy[method] = function () {
-    app[method].apply(app, arguments);
-  };
-});
+    httpism.request(req.method, url, req, {headers: req.headers, responseBody: 'stream', response: true, exceptions: false }).then(function (response) {
+      res.statusCode = response.statusCode
+      Object.keys(response.headers).forEach(function (header) {
+        res.setHeader(header, response.headers[header]);
+      });
+      response.body.pipe(res);
+    }, function (error) {
+      return handleError(req, res, url, error)
+    });
+  }
 
-module.exports = proxy;
+  const credentials = {
+    key: fs.readFileSync(__dirname + '/server.key', 'utf-8'),
+    cert: fs.readFileSync(__dirname + '/server.crt', 'utf-8'),
+  }
+
+  var server = https.createServer(credentials, reverseProxyRequest)
+  return new Promise((resolve, reject) => server.listen(port, function (err) {
+    if (err) reject(err)
+    else resolve()
+  }))
+}
