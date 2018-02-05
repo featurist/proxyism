@@ -82,9 +82,10 @@ function httpsServer (port) {
 
     httpism.request(req.method, url, req, {headers: req.headers, responseBody: 'stream', response: true, exceptions: false }).then(function (response) {
       res.statusCode = response.statusCode
-      Object.keys(response.headers).forEach(function (header) {
-        res.setHeader(header, response.headers[header]);
-      });
+      Object.keys(response.headers)
+        .filter(header => header.toLowerCase() !== 'strict-transport-security')
+        .forEach(header => res.setHeader(header, response.headers[header]))
+
       response.body.pipe(res);
     }, function (error) {
       return handleError(req, res, url, error)
